@@ -90,11 +90,11 @@ public class NotificationService {
     public void createNewCycle(Long groupId, String groupName, Long cycleId,
                                Long starterUserId, LocalDateTime deadlineAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("cycleId", cycleId);
-        payload.put("deadlineAt", KstTime.toOffset(deadlineAt).toString());   // 마감시각
-        payload.put("imageUrl", starterShotImageUrl(cycleId));   // 개인 관련 → 스타터 원본 가이드샷
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.CYCLE_ID, cycleId);
+        payload.put(Payload.DEADLINE_AT, KstTime.toOffset(deadlineAt).toString());   // 마감시각
+        payload.put(Payload.IMAGE_URL, starterShotImageUrl(cycleId));   // 개인 관련 → 스타터 원본 가이드샷
         notifyEach(excludeBlockers(activeMemberIds(groupId), starterUserId),
                 NotificationType.NEW_CYCLE, payload);
     }
@@ -103,10 +103,10 @@ public class NotificationService {
     @Transactional
     public void createCycleCompleted(Long groupId, String groupName, Long cycleId) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("cycleId", cycleId);
-        payload.put("imageUrl", starterShotImageUrl(cycleId));   // 개인 관련 → 스타터 원본 가이드샷
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.CYCLE_ID, cycleId);
+        payload.put(Payload.IMAGE_URL, starterShotImageUrl(cycleId));   // 개인 관련 → 스타터 원본 가이드샷
         notifyEach(activeMemberIds(groupId), NotificationType.CYCLE_COMPLETED, payload);
     }
 
@@ -114,9 +114,9 @@ public class NotificationService {
     @Transactional
     public void createStarterAssigned(Long groupId, String groupName) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("imageUrl", null);
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.IMAGE_URL, null);
         notifyEach(activeMemberIds(groupId), NotificationType.STARTER_ASSIGNED, payload);
     }
 
@@ -128,12 +128,12 @@ public class NotificationService {
                 .filter(id -> !id.equals(uploaderUserId))
                 .toList();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("actorNickname", actorNickname);
-        payload.put("cycleId", cycleId);
-        payload.put("shotId", shotId);
-        payload.put("imageUrl", shotImageUrl(shotId));
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.ACTOR_NICKNAME, actorNickname);
+        payload.put(Payload.CYCLE_ID, cycleId);
+        payload.put(Payload.SHOT_ID, shotId);
+        payload.put(Payload.IMAGE_URL, shotImageUrl(shotId));
         notifyEach(recipients, NotificationType.FRIEND_SHOT, payload);
     }
 
@@ -161,15 +161,15 @@ public class NotificationService {
                                                Long cycleId, Long shotId, Long shotOwnerUserId,
                                                String shotOwnerNickname, boolean isMyShot) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("actorNickname", actorNickname);
-        payload.put("cycleId", cycleId);
-        payload.put("shotId", shotId);
-        payload.put("imageUrl", shotImageUrl(shotId));
-        payload.put("shotOwnerUserId", shotOwnerUserId);   // 참여자 알림에서 차단 마스킹용
-        payload.put("shotOwnerNickname", shotOwnerNickname);
-        payload.put("isMyShot", isMyShot);
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.ACTOR_NICKNAME, actorNickname);
+        payload.put(Payload.CYCLE_ID, cycleId);
+        payload.put(Payload.SHOT_ID, shotId);
+        payload.put(Payload.IMAGE_URL, shotImageUrl(shotId));
+        payload.put(Payload.SHOT_OWNER_USER_ID, shotOwnerUserId);   // 참여자 알림에서 차단 마스킹용
+        payload.put(Payload.SHOT_OWNER_NICKNAME, shotOwnerNickname);
+        payload.put(Payload.IS_MY_SHOT, isMyShot);
         return payload;
     }
 
@@ -180,10 +180,10 @@ public class NotificationService {
                 .filter(id -> !id.equals(joinedUserId))
                 .toList();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("actorNickname", actorNickname);
-        payload.put("imageUrl", null);   // 모임 관련 → 기본 아이콘 표시용 null
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.ACTOR_NICKNAME, actorNickname);
+        payload.put(Payload.IMAGE_URL, null);   // 모임 관련 → 기본 아이콘 표시용 null
         notifyEach(recipients, NotificationType.MEMBER_JOIN, payload);
     }
 
@@ -203,12 +203,12 @@ public class NotificationService {
                 .filter(id -> !shotRepository.existsByCycleIdAndUserIdAndDeletedAtIsNull(cycleId, id))
                 .toList();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("groupId", groupId);
-        payload.put("groupName", groupName);
-        payload.put("cycleId", cycleId);
-        payload.put("remainingMinutes", remainingMinutes);
-        payload.put("deadlineAt", KstTime.toOffset(deadlineAt).toString());
-        payload.put("imageUrl", null);   // 모임 관련 → 기본 아이콘 표시용 null
+        payload.put(Payload.GROUP_ID, groupId);
+        payload.put(Payload.GROUP_NAME, groupName);
+        payload.put(Payload.CYCLE_ID, cycleId);
+        payload.put(Payload.REMAINING_MINUTES, remainingMinutes);
+        payload.put(Payload.DEADLINE_AT, KstTime.toOffset(deadlineAt).toString());
+        payload.put(Payload.IMAGE_URL, null);   // 모임 관련 → 기본 아이콘 표시용 null
         notifyEach(recipients, NotificationType.DEADLINE, payload);
     }
 
@@ -298,22 +298,22 @@ public class NotificationService {
 
     /** 알림 타입별 푸시 본문. payload의 모임/합류자 이름을 활용. */
     private String pushBody(NotificationType type, Map<String, Object> payload) {
-        String groupName = String.valueOf(payload.getOrDefault("groupName", "모임"));
+        String groupName = String.valueOf(payload.getOrDefault(Payload.GROUP_NAME, "모임"));
         return switch (type) {
             case STARTER_ASSIGNED -> "'" + groupName + "'모임의 다음 스타터가 뽑혔어요. 누구일까요?";
             case NEW_CYCLE -> "'" + groupName + "'에서 새 따라찍기가 시작됐어요!";
             case CYCLE_COMPLETED -> "'" + groupName + "'에서 따라찍기가 완료되었어요!";
-            case MEMBER_JOIN -> payload.getOrDefault("actorNickname", "친구") + "님이 '" + groupName + "' 모임에 합류했어요";
-            case FRIEND_SHOT -> "'" + groupName + "'에서 " + payload.getOrDefault("actorNickname", "친구") + "님이 따라찍기를 올렸어요";
+            case MEMBER_JOIN -> payload.getOrDefault(Payload.ACTOR_NICKNAME, "친구") + "님이 '" + groupName + "' 모임에 합류했어요";
+            case FRIEND_SHOT -> "'" + groupName + "'에서 " + payload.getOrDefault(Payload.ACTOR_NICKNAME, "친구") + "님이 따라찍기를 올렸어요";
             case COMMENT -> {
-                boolean isMyShot = Boolean.TRUE.equals(payload.get("isMyShot"));
+                boolean isMyShot = Boolean.TRUE.equals(payload.get(Payload.IS_MY_SHOT));
                 String where = isMyShot ? "내 사진에"
-                        : payload.getOrDefault("shotOwnerNickname", "친구") + "님 사진에";
-                yield "'" + groupName + "'에서 " + payload.getOrDefault("actorNickname", "친구")
+                        : payload.getOrDefault(Payload.SHOT_OWNER_NICKNAME, "친구") + "님 사진에";
+                yield "'" + groupName + "'에서 " + payload.getOrDefault(Payload.ACTOR_NICKNAME, "친구")
                         + "님이 " + where + " 댓글을 남겼어요";
             }
             case DEADLINE -> {
-                int remaining = ((Number) payload.getOrDefault("remainingMinutes", 60)).intValue();
+                int remaining = ((Number) payload.getOrDefault(Payload.REMAINING_MINUTES, 60)).intValue();
                 String left = remaining >= 60 ? (remaining / 60) + "시간" : remaining + "분";
                 yield "'" + groupName + "' 따라찍기가 " + left + " 후 마감돼요. 아직 안찍었죠?";
             }
@@ -324,8 +324,8 @@ public class NotificationService {
     /** 푸시 클릭 시 앱이 화면 이동에 쓸 data(모두 문자열이어야 함 — FCM 규격). */
     private Map<String, String> pushData(NotificationType type, Map<String, Object> payload, Long notificationId) {
         Map<String, String> data = new LinkedHashMap<>();
-        data.put("type", type.name());
-        data.put("notificationId", String.valueOf(notificationId));
+        data.put(FcmPushData.TYPE, type.name());
+        data.put(FcmPushData.NOTIFICATION_ID, String.valueOf(notificationId));
         payload.forEach((k, v) -> {
             if (v != null) {
                 data.put(k, String.valueOf(v));
@@ -445,28 +445,28 @@ public class NotificationService {
     // 저장된 imageUrl은 생성 시점 값이라 조회 시점 상태(검토중/삭제)로 덮어쓴다. starterUserId는 클라 차단 마스킹용
     private void applyStarterImageState(Map<String, Object> payload) {
         Shot shot = null;
-        if (payload.get("cycleId") instanceof Number cycleId) {
+        if (payload.get(Payload.CYCLE_ID) instanceof Number cycleId) {
             shot = shotRepository.findByCycleIdAndType(cycleId.longValue(), ShotType.STARTER).orElse(null);
         }
         boolean hidden = shot == null || shot.isRemoved();
         boolean underReview = !hidden && shot.isUnderReview();
-        payload.put("imageUrl", hidden || underReview ? null : shot.getImageUrl());
-        payload.put("imageUnderReview", underReview);
-        payload.put("starterUserId", shot != null ? shot.getUserId() : null);
+        payload.put(Payload.IMAGE_URL, hidden || underReview ? null : shot.getImageUrl());
+        payload.put(Payload.IMAGE_UNDER_REVIEW, underReview);
+        payload.put(Payload.STARTER_USER_ID, shot != null ? shot.getUserId() : null);
     }
 
     // shotId로 사진을 조회해 조회 시점 상태를 반영한다.
     private void applyShotImageState(Map<String, Object> payload, Long viewerUserId, boolean applyLock) {
         Shot shot = null;
-        if (payload.get("shotId") instanceof Number shotId) {
+        if (payload.get(Payload.SHOT_ID) instanceof Number shotId) {
             shot = shotRepository.findById(shotId.longValue()).orElse(null);
         }
         boolean hidden = shot == null || shot.isRemoved();
         boolean underReview = !hidden && shot.isUnderReview();
         boolean locked = applyLock && !hidden && !underReview && !canView(shot, viewerUserId);
-        payload.put("imageUrl", hidden || underReview ? null : shot.getImageUrl());
-        payload.put("imageUnderReview", underReview);
-        payload.put("locked", locked);
+        payload.put(Payload.IMAGE_URL, hidden || underReview ? null : shot.getImageUrl());
+        payload.put(Payload.IMAGE_UNDER_REVIEW, underReview);
+        payload.put(Payload.LOCKED, locked);
     }
 
     // SHOT-02 잠금 규칙: 마감된 회차이거나, 보는 사람이 그 회차에 사진을 올렸으면 볼 수 있다
@@ -483,4 +483,25 @@ public class NotificationService {
                 .isPresent();
     }
 
+    private static final class Payload {
+        private static final String GROUP_ID = "groupId";
+        private static final String GROUP_NAME = "groupName";
+        private static final String CYCLE_ID = "cycleId";
+        private static final String SHOT_ID = "shotId";
+        private static final String DEADLINE_AT = "deadlineAt";
+        private static final String REMAINING_MINUTES = "remainingMinutes";
+        private static final String IMAGE_URL = "imageUrl";
+        private static final String IMAGE_UNDER_REVIEW = "imageUnderReview";
+        private static final String LOCKED = "locked";
+        private static final String ACTOR_NICKNAME = "actorNickname";
+        private static final String STARTER_USER_ID = "starterUserId";
+        private static final String SHOT_OWNER_USER_ID = "shotOwnerUserId";
+        private static final String SHOT_OWNER_NICKNAME = "shotOwnerNickname";
+        private static final String IS_MY_SHOT = "isMyShot";
+    }
+
+    private static final class FcmPushData {
+        private static final String TYPE = "type";
+        private static final String NOTIFICATION_ID = "notificationId";
+    }
 }
