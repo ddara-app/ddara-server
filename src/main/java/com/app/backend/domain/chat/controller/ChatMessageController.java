@@ -1,5 +1,6 @@
 package com.app.backend.domain.chat.controller;
 
+import com.app.backend.domain.chat.dto.ChatEvent;
 import com.app.backend.domain.chat.dto.MessageResponse;
 import com.app.backend.domain.chat.dto.SendMessageRequest;
 import com.app.backend.domain.chat.service.ChatMessageService;
@@ -30,6 +31,6 @@ public class ChatMessageController {
                      Principal principal) {
         Long userId = Long.valueOf(principal.getName());
         MessageResponse response = chatMessageService.sendText(groupId, userId, request);
-        messagingTemplate.convertAndSend("/topic/groups/" + groupId, response);
+        messagingTemplate.convertAndSend("/topic/groups/" + groupId, ChatEvent.newMessage(response));
     }
 }
