@@ -1,6 +1,8 @@
 package com.app.backend.domain.chat.service;
 
 import com.app.backend.domain.chat.dto.ChatReadResponse;
+import com.app.backend.domain.chat.dto.ChatRoomItem;
+import com.app.backend.domain.chat.dto.ChatRoomListResponse;
 import com.app.backend.domain.chat.dto.MessageHistoryItem;
 import com.app.backend.domain.chat.dto.MessageHistoryResponse;
 import com.app.backend.domain.chat.dto.MessageResponse;
@@ -8,7 +10,9 @@ import com.app.backend.domain.chat.dto.SendMessageRequest;
 import com.app.backend.domain.chat.entity.Message;
 import com.app.backend.domain.chat.entity.MessageType;
 import com.app.backend.domain.chat.repository.MessageRepository;
+import com.app.backend.domain.group.entity.Group;
 import com.app.backend.domain.group.entity.Membership;
+import com.app.backend.domain.group.repository.GroupRepository;
 import com.app.backend.domain.group.repository.MembershipRepository;
 import com.app.backend.global.exception.CustomException;
 import com.app.backend.global.exception.ErrorCode;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,11 +33,14 @@ public class ChatMessageService {
 
     private final MessageRepository messageRepository;
     private final MembershipRepository membershipRepository;
+    private final GroupRepository groupRepository;
 
     public ChatMessageService(MessageRepository messageRepository,
-                              MembershipRepository membershipRepository) {
+                              MembershipRepository membershipRepository,
+                              GroupRepository groupRepository) {
         this.messageRepository = messageRepository;
         this.membershipRepository = membershipRepository;
+        this.groupRepository = groupRepository;
     }
 
     /** 텍스트 메시지 전송 → 저장 후 브로드캐스트할 응답 반환. 활성 멤버만 가능. */
@@ -91,5 +99,37 @@ public class ChatMessageService {
         LocalDateTime now = LocalDateTime.now();
         me.markChatRead(now);
         return new ChatReadResponse(KstTime.toOffset(now));
+    }
+
+    /** 채팅방 목록 조회. 참여 중인 방마다 최근 메시지와 안읽음 수를 포함. 최근 메시지 순 정렬 */
+    @Transactional(readOnly = true)
+    public ChatRoomListResponse getChatRooms(Long userId) {
+        List<Membership> memberships = membershipRepository.findByUserIdAndLeftAtIsNull(userId);
+        List<Long> groupIds = memberships.stream().map(Membership::getGroupId).toList();
+        Map<Long, Group> groups = groupRepository.findAllById(groupIds).stream()
+                .filter(g -> g.getDeletedAt() == null)
+                .collect(Collectors.toMap(Group::getId, g -> g));
+
+        List<ChatRoomItem> items = new ArrayList<>();
+        for (Membership m : memberships) {
+            Group group = groups.get(m.getGroupId());
+            if (group == null) {
+                continue;
+            }
+            Message last = messageRepository
+                    .findTopByGroupIdAndCreatedAtGreaterThanEqualOrderByIdDesc(m.getGroupId(), m.getJoinedAt())
+                    .orElse(null);
+            long unread = messageRepository.countUnread(m.getGroupId(), m.getJoinedAt(), m.getChatLastReadAt());
+            items.add(new ChatRoomItem(
+                    group.getId(),
+                    group.getName(),
+                    last == null ? null : last.getContent(),
+                    last == null ? null : KstTime.toOffset(last.getCreatedAt()),
+                    unread));
+        }
+        // 최근 메시지 순(내림차순)
+        items.sort(Comparator.comparing(ChatRoomItem::lastMessageAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return new ChatRoomListResponse(items);
     }
 }

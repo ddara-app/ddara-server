@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
 
@@ -23,4 +24,18 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
                               @Param("joinedAt") LocalDateTime joinedAt,
                               @Param("cursor") Long cursor,
                               Pageable pageable);
+
+    // 채팅방 목록용: 참여 시점 이후 마지막 메시지
+    Optional<Message> findTopByGroupIdAndCreatedAtGreaterThanEqualOrderByIdDesc(Long groupId, LocalDateTime joinedAt);
+
+    // 채팅방 목록용: 안읽음 수. lastReadAt null이면 참여 이후 전부
+    @Query("""
+            SELECT COUNT(m) FROM Message m
+            WHERE m.groupId = :groupId
+              AND m.createdAt >= :joinedAt
+              AND (:lastReadAt IS NULL OR m.createdAt > :lastReadAt)
+            """)
+    long countUnread(@Param("groupId") Long groupId,
+                     @Param("joinedAt") LocalDateTime joinedAt,
+                     @Param("lastReadAt") LocalDateTime lastReadAt);
 }

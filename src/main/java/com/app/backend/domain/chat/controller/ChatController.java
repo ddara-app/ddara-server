@@ -1,6 +1,7 @@
 package com.app.backend.domain.chat.controller;
 
 import com.app.backend.domain.chat.dto.ChatReadResponse;
+import com.app.backend.domain.chat.dto.ChatRoomListResponse;
 import com.app.backend.domain.chat.dto.MessageHistoryResponse;
 import com.app.backend.domain.chat.service.ChatMessageService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,5 +34,11 @@ public class ChatController {
     public ChatReadResponse markRead(@AuthenticationPrincipal Long userId,
                                      @PathVariable Long groupId) {
         return chatMessageService.markRead(userId, groupId);
+    }
+
+    // 채팅방 목록 조회 (CHAT-02)
+    @GetMapping("/api/chats")
+    public ChatRoomListResponse getChatRooms(@AuthenticationPrincipal Long userId) {
+        return chatMessageService.getChatRooms(userId);
     }
 }
