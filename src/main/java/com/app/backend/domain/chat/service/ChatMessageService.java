@@ -1,5 +1,6 @@
 package com.app.backend.domain.chat.service;
 
+import com.app.backend.domain.chat.dto.ChatReadResponse;
 import com.app.backend.domain.chat.dto.MessageHistoryItem;
 import com.app.backend.domain.chat.dto.MessageHistoryResponse;
 import com.app.backend.domain.chat.dto.MessageResponse;
@@ -11,10 +12,12 @@ import com.app.backend.domain.group.entity.Membership;
 import com.app.backend.domain.group.repository.MembershipRepository;
 import com.app.backend.global.exception.CustomException;
 import com.app.backend.global.exception.ErrorCode;
+import com.app.backend.global.util.KstTime;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -76,5 +79,17 @@ public class ChatMessageService {
             items.add(MessageHistoryItem.of(m, nicknames.get(m.getUserId())));
         }
         return new MessageHistoryResponse(items, hasNext, nextCursor);
+    }
+
+    /** 읽음 처리 → chat_last_read_at을 현재 시각으로 갱신. 활성 멤버만 가능 */
+    @Transactional
+    public ChatReadResponse markRead(Long userId, Long groupId) {
+        Membership me = membershipRepository.findByGroupIdAndUserId(groupId, userId)
+                .filter(Membership::isActive)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
+
+        LocalDateTime now = LocalDateTime.now();
+        me.markChatRead(now);
+        return new ChatReadResponse(KstTime.toOffset(now));
     }
 }
