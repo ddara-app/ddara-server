@@ -76,4 +76,13 @@ public class Message {
         this.replyToMessageId = replyToMessageId;
         this.reviewStatus = ReviewStatus.ACTIVE;
     }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    // 삭제 = deleted_at 기록 (soft delete)
+    public void markDeleted(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
 }

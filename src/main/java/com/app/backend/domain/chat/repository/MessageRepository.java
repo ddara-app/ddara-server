@@ -18,9 +18,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             WHERE m.groupId = :groupId
               AND m.createdAt >= :joinedAt
               AND (:cursor IS NULL OR m.id < :cursor)
+              AND NOT EXISTS (SELECT 1 FROM MessageHide h WHERE h.messageId = m.id AND h.userId = :userId)
             ORDER BY m.id DESC
             """)
     List<Message> findHistory(@Param("groupId") Long groupId,
+                              @Param("userId") Long userId,
                               @Param("joinedAt") LocalDateTime joinedAt,
                               @Param("cursor") Long cursor,
                               Pageable pageable);
