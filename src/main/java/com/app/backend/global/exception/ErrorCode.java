@@ -45,7 +45,12 @@ public enum ErrorCode {
 
     SHOT_LOCKED(HttpStatus.FORBIDDEN, "잠금 상태의 사진입니다."),
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "코멘트를 찾을 수 없습니다."),
-    COMMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "본인이 작성한 코멘트가 아닙니다.");
+    COMMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "본인이 작성한 코멘트가 아닙니다."),
+
+    MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다."),
+    NOT_MESSAGE_OWNER(HttpStatus.FORBIDDEN, "본인이 보낸 메시지가 아닙니다."),
+    DUPLICATE_REACTION(HttpStatus.CONFLICT, "이미 추가한 이모지입니다."),
+    REACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "추가한 리액션이 없습니다.");
 
     private final HttpStatus status;
     private final String message;

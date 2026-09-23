@@ -13,15 +13,18 @@ public record MessageHistoryItem(
         String senderNickname,
         MessageType type,
         String content,
+        boolean deleted,
         OffsetDateTime createdAt
 ) {
     public static MessageHistoryItem of(Message message, String senderNickname) {
+        boolean deleted = message.isDeleted();
         return new MessageHistoryItem(
                 message.getId(),
                 message.getUserId(),
                 senderNickname,
                 message.getType(),
-                message.getContent(),
+                deleted ? null : message.getContent(),
+                deleted,
                 KstTime.toOffset(message.getCreatedAt()));
     }
 }

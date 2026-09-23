@@ -1,14 +1,24 @@
 package com.app.backend.domain.chat.service;
 
+import com.app.backend.domain.chat.dto.ChatEvent;
 import com.app.backend.domain.chat.dto.ChatReadResponse;
 import com.app.backend.domain.chat.dto.ChatRoomItem;
 import com.app.backend.domain.chat.dto.ChatRoomListResponse;
 import com.app.backend.domain.chat.dto.MessageHistoryItem;
 import com.app.backend.domain.chat.dto.MessageHistoryResponse;
+import com.app.backend.domain.chat.dto.MessageIdResponse;
 import com.app.backend.domain.chat.dto.MessageResponse;
+import com.app.backend.domain.chat.dto.ReactionCount;
+import com.app.backend.domain.chat.dto.ReactionResponse;
 import com.app.backend.domain.chat.dto.SendMessageRequest;
 import com.app.backend.domain.chat.entity.Message;
+import com.app.backend.domain.chat.entity.MessageHide;
+import com.app.backend.domain.chat.entity.MessageHideId;
+import com.app.backend.domain.chat.entity.MessageReaction;
+import com.app.backend.domain.chat.entity.MessageReactionId;
 import com.app.backend.domain.chat.entity.MessageType;
+import com.app.backend.domain.chat.repository.MessageHideRepository;
+import com.app.backend.domain.chat.repository.MessageReactionRepository;
 import com.app.backend.domain.chat.repository.MessageRepository;
 import com.app.backend.domain.group.entity.Group;
 import com.app.backend.domain.group.entity.Membership;
@@ -18,6 +28,7 @@ import com.app.backend.global.exception.CustomException;
 import com.app.backend.global.exception.ErrorCode;
 import com.app.backend.global.util.KstTime;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,15 +43,24 @@ import java.util.stream.Collectors;
 public class ChatMessageService {
 
     private final MessageRepository messageRepository;
+    private final MessageHideRepository messageHideRepository;
+    private final MessageReactionRepository messageReactionRepository;
     private final MembershipRepository membershipRepository;
     private final GroupRepository groupRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public ChatMessageService(MessageRepository messageRepository,
+                              MessageHideRepository messageHideRepository,
+                              MessageReactionRepository messageReactionRepository,
                               MembershipRepository membershipRepository,
-                              GroupRepository groupRepository) {
+                              GroupRepository groupRepository,
+                              SimpMessagingTemplate messagingTemplate) {
         this.messageRepository = messageRepository;
+        this.messageHideRepository = messageHideRepository;
+        this.messageReactionRepository = messageReactionRepository;
         this.membershipRepository = membershipRepository;
         this.groupRepository = groupRepository;
+        this.messagingTemplate = messagingTemplate;
     }
 
     /** 텍스트 메시지 전송 → 저장 후 브로드캐스트할 응답 반환. 활성 멤버만 가능. */
@@ -67,9 +87,9 @@ public class ChatMessageService {
                 .filter(Membership::isActive)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
 
-        // 다음 페이지 존재 여부 판단을 위해 size + 1개 조회 (id 내림차순)
+        // 다음 페이지 존재 여부 판단을 위해 size + 1개 조회 (id 내림차순). 숨긴 메시지 제외.
         List<Message> rows = messageRepository.findHistory(
-                groupId, me.getJoinedAt(), cursor, PageRequest.of(0, size + 1));
+                groupId, userId, me.getJoinedAt(), cursor, PageRequest.of(0, size + 1));
 
         boolean hasNext = rows.size() > size;
         List<Message> page = hasNext ? rows.subList(0, size) : rows;
@@ -131,5 +151,69 @@ public class ChatMessageService {
         items.sort(Comparator.comparing(ChatRoomItem::lastMessageAt,
                 Comparator.nullsLast(Comparator.reverseOrder())));
         return new ChatRoomListResponse(items);
+    }
+
+    /** 메시지 삭제. 본인 메시지만 soft delete 후 삭제 이벤트를 구독자에게 전송 */
+    @Transactional
+    public MessageIdResponse deleteMessage(Long userId, Long messageId) {
+        Message message = messageRepository.findById(messageId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
+        if (!message.getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.NOT_MESSAGE_OWNER);
+        }
+        message.markDeleted(LocalDateTime.now());
+        messagingTemplate.convertAndSend("/topic/groups/" + message.getGroupId(),
+                ChatEvent.messageDeleted(messageId));
+        return new MessageIdResponse(messageId);
+    }
+
+    /** 메시지 숨김. 본인 화면에서만 제외 */
+    @Transactional
+    public MessageIdResponse hideMessage(Long userId, Long messageId) {
+        if (!messageRepository.existsById(messageId)) {
+            throw new CustomException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+        MessageHideId hideId = new MessageHideId(messageId, userId);
+        if (!messageHideRepository.existsById(hideId)) {
+            messageHideRepository.save(MessageHide.builder().messageId(messageId).userId(userId).build());
+        }
+        return new MessageIdResponse(messageId);
+    }
+
+    /** 이모지 리액션 추가. 다중 이모지 허용, 같은 이모지 중복 불가. 갱신 이벤트 전송 */
+    @Transactional
+    public ReactionResponse addReaction(Long userId, Long messageId, String emoji) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
+        MessageReactionId id = new MessageReactionId(messageId, userId, emoji);
+        if (messageReactionRepository.existsById(id)) {
+            throw new CustomException(ErrorCode.DUPLICATE_REACTION);
+        }
+        messageReactionRepository.save(MessageReaction.builder()
+                .messageId(messageId).userId(userId).emoji(emoji).build());
+        broadcastReactions(message);
+        return new ReactionResponse(messageId, emoji);
+    }
+
+    /** 이모지 리액션 삭제. 갱신 이벤트 전송 */
+    @Transactional
+    public ReactionResponse removeReaction(Long userId, Long messageId, String emoji) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
+        MessageReactionId id = new MessageReactionId(messageId, userId, emoji);
+        if (!messageReactionRepository.existsById(id)) {
+            throw new CustomException(ErrorCode.REACTION_NOT_FOUND);
+        }
+        messageReactionRepository.deleteById(id);
+        broadcastReactions(message);
+        return new ReactionResponse(messageId, emoji);
+    }
+
+    // 리액션 집계를 구독자에게 전송
+    private void broadcastReactions(Message message) {
+        List<ReactionCount> reactions = messageReactionRepository.countByEmoji(message.getId());
+        messagingTemplate.convertAndSend("/topic/groups/" + message.getGroupId(),
+                ChatEvent.reactionUpdated(message.getId(), reactions));
     }
 }
