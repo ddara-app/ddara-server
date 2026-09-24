@@ -1,5 +1,6 @@
 package com.app.backend.domain.cycle.service;
 
+import com.app.backend.domain.chat.service.ChatMessageService;
 import com.app.backend.domain.cycle.dto.CreateCycleRequest;
 import com.app.backend.domain.cycle.dto.CycleCreateResponse;
 import com.app.backend.domain.cycle.dto.PastCyclesResponse;
@@ -45,6 +46,7 @@ public class CycleService {
     private final NotificationService notificationService;
     private final UserRepository userRepository;
     private final NextStarterAssigner nextStarterAssigner;
+    private final ChatMessageService chatMessageService;
 
     public CycleService(GroupRepository groupRepository,
                         MembershipRepository membershipRepository,
@@ -52,7 +54,8 @@ public class CycleService {
                         ShotRepository shotRepository,
                         NotificationService notificationService,
                         UserRepository userRepository,
-                        NextStarterAssigner nextStarterAssigner) {
+                        NextStarterAssigner nextStarterAssigner,
+                        ChatMessageService chatMessageService) {
         this.groupRepository = groupRepository;
         this.membershipRepository = membershipRepository;
         this.cycleRepository = cycleRepository;
@@ -60,6 +63,7 @@ public class CycleService {
         this.notificationService = notificationService;
         this.userRepository = userRepository;
         this.nextStarterAssigner = nextStarterAssigner;
+        this.chatMessageService = chatMessageService;
     }
 
     @Transactional
@@ -101,6 +105,9 @@ public class CycleService {
         }
 
         notificationService.createNewCycle(groupId, group.getName(), cycle.getId(), userId, cycle.getDeadlineAt());
+
+        // 스타터 사진을 채팅방에 자동 공유
+        chatMessageService.shareStarterShot(groupId, userId, starterShot.getId());
 
         return CycleCreateResponse.of(cycle, starterShot);
     }

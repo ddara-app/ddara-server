@@ -20,10 +20,14 @@ import com.app.backend.domain.chat.entity.MessageType;
 import com.app.backend.domain.chat.repository.MessageHideRepository;
 import com.app.backend.domain.chat.repository.MessageReactionRepository;
 import com.app.backend.domain.chat.repository.MessageRepository;
+import com.app.backend.domain.cycle.entity.Cycle;
+import com.app.backend.domain.cycle.repository.CycleRepository;
 import com.app.backend.domain.group.entity.Group;
 import com.app.backend.domain.group.entity.Membership;
 import com.app.backend.domain.group.repository.GroupRepository;
 import com.app.backend.domain.group.repository.MembershipRepository;
+import com.app.backend.domain.shot.entity.Shot;
+import com.app.backend.domain.shot.repository.ShotRepository;
 import com.app.backend.global.exception.CustomException;
 import com.app.backend.global.exception.ErrorCode;
 import com.app.backend.global.util.KstTime;
@@ -47,6 +51,8 @@ public class ChatMessageService {
     private final MessageReactionRepository messageReactionRepository;
     private final MembershipRepository membershipRepository;
     private final GroupRepository groupRepository;
+    private final ShotRepository shotRepository;
+    private final CycleRepository cycleRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatMessageService(MessageRepository messageRepository,
@@ -54,30 +60,103 @@ public class ChatMessageService {
                               MessageReactionRepository messageReactionRepository,
                               MembershipRepository membershipRepository,
                               GroupRepository groupRepository,
+                              ShotRepository shotRepository,
+                              CycleRepository cycleRepository,
                               SimpMessagingTemplate messagingTemplate) {
         this.messageRepository = messageRepository;
         this.messageHideRepository = messageHideRepository;
         this.messageReactionRepository = messageReactionRepository;
         this.membershipRepository = membershipRepository;
         this.groupRepository = groupRepository;
+        this.shotRepository = shotRepository;
+        this.cycleRepository = cycleRepository;
         this.messagingTemplate = messagingTemplate;
     }
 
-    /** 텍스트 메시지 전송 → 저장 후 브로드캐스트할 응답 반환. 활성 멤버만 가능. */
+    /** 메시지 전송 → type별 검증·저장 후 imageUrl 등을 채운 응답 반환. 활성 멤버만 가능. */
     @Transactional
-    public MessageResponse sendText(Long groupId, Long userId, SendMessageRequest request) {
+    public MessageResponse send(Long groupId, Long userId, SendMessageRequest request) {
         Membership membership = membershipRepository.findByGroupIdAndUserId(groupId, userId)
                 .filter(Membership::isActive)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
 
-        Message message = messageRepository.save(Message.builder()
-                .groupId(groupId)
-                .userId(userId)
-                .type(MessageType.TEXT)
-                .content(request.content())
-                .build());
+        MessageType type = request.type() == null ? MessageType.TEXT : request.type();
+        Message message = switch (type) {
+            case TEXT -> buildText(groupId, userId, request);
+            case PHOTO -> buildPhoto(groupId, userId, request);
+            case IMAGE -> buildImage(groupId, userId, request);
+            default -> throw new CustomException(ErrorCode.INVALID_INPUT);
+        };
 
-        return MessageResponse.of(message, membership.getNickname());
+        Message saved = messageRepository.save(message);
+        return toResponse(saved, membership.getNickname());
+    }
+
+    /** 회차 시작 시 스타터 사진을 채팅방에 자동 공유한다. (shot 도메인에서 호출) */
+    @Transactional
+    public void shareStarterShot(Long groupId, Long starterUserId, Long shotId) {
+        Message saved = messageRepository.save(Message.builder()
+                .groupId(groupId).userId(starterUserId)
+                .type(MessageType.STARTER_SHARE).shotId(shotId)
+                .build());
+        String nickname = membershipRepository.findByGroupIdAndUserId(groupId, starterUserId)
+                .map(Membership::getNickname).orElse(null);
+        messagingTemplate.convertAndSend("/topic/groups/" + groupId,
+                ChatEvent.newMessage(toResponse(saved, nickname)));
+    }
+
+    private Message buildText(Long groupId, Long userId, SendMessageRequest request) {
+        requireContent(request);
+        return Message.builder()
+                .groupId(groupId).userId(userId)
+                .type(MessageType.TEXT).content(request.content())
+                .build();
+    }
+
+    private Message buildPhoto(Long groupId, Long userId, SendMessageRequest request) {
+        requireContent(request);
+        if (request.shotId() == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (!shotRepository.existsById(request.shotId())) {
+            throw new CustomException(ErrorCode.SHOT_NOT_FOUND);
+        }
+        return Message.builder()
+                .groupId(groupId).userId(userId)
+                .type(MessageType.PHOTO).content(request.content()).shotId(request.shotId())
+                .build();
+    }
+
+    private Message buildImage(Long groupId, Long userId, SendMessageRequest request) {
+        if (request.imageUrl() == null || request.imageUrl().isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return Message.builder()
+                .groupId(groupId).userId(userId)
+                .type(MessageType.IMAGE).imageUrl(request.imageUrl())
+                .build();
+    }
+
+    private void requireContent(SendMessageRequest request) {
+        if (request.content() == null || request.content().isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    // 단건 응답: imageUrl(IMAGE는 저장값, PHOTO/STARTER_SHARE는 shotId로 사진 조회)과 topic(STARTER_SHARE) 해결
+    private MessageResponse toResponse(Message message, String senderNickname) {
+        Shot shot = null;
+        if ((message.getType() == MessageType.PHOTO || message.getType() == MessageType.STARTER_SHARE)
+                && message.getShotId() != null) {
+            shot = shotRepository.findById(message.getShotId()).orElse(null);
+        }
+        String imageUrl = message.getType() == MessageType.IMAGE
+                ? message.getImageUrl()
+                : (shot == null ? null : shot.getImageUrl());
+        String topic = (message.getType() == MessageType.STARTER_SHARE && shot != null)
+                ? cycleRepository.findById(shot.getCycleId()).map(Cycle::getTopic).orElse(null)
+                : null;
+        return MessageResponse.of(message, senderNickname, imageUrl, topic);
     }
 
     /** 메시지 이력 조회. 참여 시점 이후 메시지만 커서 페이지네이션으로 반환. 활성 멤버만 가능. */
@@ -100,11 +179,31 @@ public class ChatMessageService {
         Map<Long, String> nicknames = membershipRepository.findByGroupIdAndUserIdIn(groupId, senderIds).stream()
                 .collect(Collectors.toMap(Membership::getUserId, Membership::getNickname));
 
+        // 이미지 메시지의 shotId → 사진 배치 조회
+        List<Long> shotIds = page.stream().map(Message::getShotId).filter(id -> id != null).distinct().toList();
+        Map<Long, Shot> shots = shotRepository.findAllById(shotIds).stream()
+                .collect(Collectors.toMap(Shot::getId, s -> s));
+
+        // STARTER_SHARE의 회차 주제 배치 조회
+        List<Long> cycleIds = page.stream()
+                .filter(m -> m.getType() == MessageType.STARTER_SHARE && shots.containsKey(m.getShotId()))
+                .map(m -> shots.get(m.getShotId()).getCycleId())
+                .distinct().toList();
+        Map<Long, String> topics = cycleRepository.findAllById(cycleIds).stream()
+                .collect(Collectors.toMap(Cycle::getId, Cycle::getTopic));
+
         // 응답은 id 오름차순
         List<MessageHistoryItem> items = new ArrayList<>();
         for (int i = page.size() - 1; i >= 0; i--) {
             Message m = page.get(i);
-            items.add(MessageHistoryItem.of(m, nicknames.get(m.getUserId())));
+            Shot shot = m.getShotId() == null ? null : shots.get(m.getShotId());
+            String imageUrl = m.getType() == MessageType.IMAGE
+                    ? m.getImageUrl()
+                    : (shot == null ? null : shot.getImageUrl());
+            String topic = (m.getType() == MessageType.STARTER_SHARE && shot != null)
+                    ? topics.get(shot.getCycleId())
+                    : null;
+            items.add(MessageHistoryItem.of(m, nicknames.get(m.getUserId()), imageUrl, topic));
         }
         return new MessageHistoryResponse(items, hasNext, nextCursor);
     }

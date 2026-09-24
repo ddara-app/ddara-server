@@ -37,7 +37,7 @@ public class ChatMessageController {
                      @Valid @Payload SendMessageRequest request,
                      Principal principal) {
         Long userId = Long.valueOf(principal.getName());
-        MessageResponse response = chatMessageService.sendText(groupId, userId, request);
+        MessageResponse response = chatMessageService.send(groupId, userId, request);
         messagingTemplate.convertAndSend("/topic/groups/" + groupId, ChatEvent.newMessage(response));
     }
 

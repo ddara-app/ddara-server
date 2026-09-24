@@ -6,7 +6,7 @@ import com.app.backend.global.util.KstTime;
 
 import java.time.OffsetDateTime;
 
-/** 채팅 메시지 브로드캐스트/응답 형태. */
+/** 채팅 메시지 브로드캐스트/응답 형태 */
 public record MessageResponse(
         Long id,
         Long groupId,
@@ -14,9 +14,12 @@ public record MessageResponse(
         String senderNickname,
         MessageType type,
         String content,
+        Long shotId,
+        String imageUrl,
+        String topic,
         OffsetDateTime createdAt
 ) {
-    public static MessageResponse of(Message message, String senderNickname) {
+    public static MessageResponse of(Message message, String senderNickname, String imageUrl, String topic) {
         return new MessageResponse(
                 message.getId(),
                 message.getGroupId(),
@@ -24,6 +27,9 @@ public record MessageResponse(
                 senderNickname,
                 message.getType(),
                 message.getContent(),
+                message.getShotId(),
+                imageUrl,
+                topic,
                 KstTime.toOffset(message.getCreatedAt()));
     }
 }
