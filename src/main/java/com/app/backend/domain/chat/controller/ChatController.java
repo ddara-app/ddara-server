@@ -1,5 +1,7 @@
 package com.app.backend.domain.chat.controller;
 
+import com.app.backend.domain.chat.dto.ChatMuteRequest;
+import com.app.backend.domain.chat.dto.ChatMuteResponse;
 import com.app.backend.domain.chat.dto.ChatReadResponse;
 import com.app.backend.domain.chat.dto.ChatRoomListResponse;
 import com.app.backend.domain.chat.dto.MessageHistoryResponse;
@@ -11,6 +13,7 @@ import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,5 +79,13 @@ public class ChatController {
                                            @PathVariable Long messageId,
                                            @Valid @RequestBody ReactionRequest request) {
         return chatMessageService.removeReaction(userId, messageId, request.emoji());
+    }
+
+    // 방별 채팅 알림 켜기/끄기 (CHAT-08)
+    @PatchMapping("/api/groups/{groupId}/chat/mute")
+    public ChatMuteResponse setChatMuted(@AuthenticationPrincipal Long userId,
+                                         @PathVariable Long groupId,
+                                         @Valid @RequestBody ChatMuteRequest request) {
+        return chatMessageService.setChatMuted(userId, groupId, request.muted());
     }
 }

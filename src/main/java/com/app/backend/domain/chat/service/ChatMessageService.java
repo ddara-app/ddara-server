@@ -1,6 +1,7 @@
 package com.app.backend.domain.chat.service;
 
 import com.app.backend.domain.chat.dto.ChatEvent;
+import com.app.backend.domain.chat.dto.ChatMuteResponse;
 import com.app.backend.domain.chat.dto.ChatReadResponse;
 import com.app.backend.domain.chat.dto.ChatRoomItem;
 import com.app.backend.domain.chat.dto.ChatRoomListResponse;
@@ -53,6 +54,7 @@ public class ChatMessageService {
     private final GroupRepository groupRepository;
     private final ShotRepository shotRepository;
     private final CycleRepository cycleRepository;
+    private final ChatPushSender chatPushSender;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatMessageService(MessageRepository messageRepository,
@@ -62,6 +64,7 @@ public class ChatMessageService {
                               GroupRepository groupRepository,
                               ShotRepository shotRepository,
                               CycleRepository cycleRepository,
+                              ChatPushSender chatPushSender,
                               SimpMessagingTemplate messagingTemplate) {
         this.messageRepository = messageRepository;
         this.messageHideRepository = messageHideRepository;
@@ -70,6 +73,7 @@ public class ChatMessageService {
         this.groupRepository = groupRepository;
         this.shotRepository = shotRepository;
         this.cycleRepository = cycleRepository;
+        this.chatPushSender = chatPushSender;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -89,6 +93,7 @@ public class ChatMessageService {
         };
 
         Message saved = messageRepository.save(message);
+        chatPushSender.pushNewMessage(saved, membership.getNickname());
         return toResponse(saved, membership.getNickname());
     }
 
@@ -218,6 +223,16 @@ public class ChatMessageService {
         LocalDateTime now = LocalDateTime.now();
         me.markChatRead(now);
         return new ChatReadResponse(KstTime.toOffset(now));
+    }
+
+    /** 방별 채팅 알림 켜기/끄기 */
+    @Transactional
+    public ChatMuteResponse setChatMuted(Long userId, Long groupId, boolean muted) {
+        Membership me = membershipRepository.findByGroupIdAndUserId(groupId, userId)
+                .filter(Membership::isActive)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
+        me.changeChatMuted(muted);
+        return new ChatMuteResponse(groupId, muted);
     }
 
     /** 채팅방 목록 조회. 참여 중인 방마다 최근 메시지와 안읽음 수를 포함. 최근 메시지 순 정렬 */

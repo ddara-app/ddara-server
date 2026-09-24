@@ -11,7 +11,8 @@ public record NotificationSettingsRequest(
             Boolean followShot,
             Boolean friendShot,
             Boolean starterAssigned,
-            Boolean comment
+            Boolean comment,
+            Boolean chat
     ) {
     }
 
