@@ -11,7 +11,7 @@ public record NotificationSettingsResponse(
         Activity activity,
         Etc etc
 ) {
-    public record Activity(boolean followShot, boolean friendShot, boolean starterAssigned, boolean comment) {
+    public record Activity(boolean followShot, boolean friendShot, boolean starterAssigned, boolean comment, boolean chat) {
     }
 
     public record Etc(boolean memberJoin) {
@@ -20,7 +20,7 @@ public record NotificationSettingsResponse(
     /** 미설정 기본값 — 전부 켜짐(true). */
     public static NotificationSettingsResponse allOn() {
         return new NotificationSettingsResponse(true,
-                new Activity(true, true, true, true), new Etc(true));
+                new Activity(true, true, true, true, true), new Etc(true));
     }
 
     public static NotificationSettingsResponse fromJson(JsonNode root) {
@@ -35,7 +35,8 @@ public record NotificationSettingsResponse(
                         boolOrTrue(activity, "followShot"),
                         boolOrTrue(activity, "friendShot"),
                         boolOrTrue(activity, "starterAssigned"),
-                        boolOrTrue(activity, "comment")),
+                        boolOrTrue(activity, "comment"),
+                        boolOrTrue(activity, "chat")),
                 new Etc(boolOrTrue(etc, "memberJoin")));
     }
 

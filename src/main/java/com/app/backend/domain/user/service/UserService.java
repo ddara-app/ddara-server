@@ -180,7 +180,8 @@ public class UserService {
                         orTrue(activity == null ? null : activity.followShot()),
                         orTrue(activity == null ? null : activity.friendShot()),
                         orTrue(activity == null ? null : activity.starterAssigned()),
-                        orTrue(activity == null ? null : activity.comment())),
+                        orTrue(activity == null ? null : activity.comment()),
+                        orTrue(activity == null ? null : activity.chat())),
                 new NotificationSettingsResponse.Etc(
                         orTrue(etc == null ? null : etc.memberJoin())));
 
