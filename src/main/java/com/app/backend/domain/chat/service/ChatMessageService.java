@@ -54,6 +54,7 @@ public class ChatMessageService {
     private final GroupRepository groupRepository;
     private final ShotRepository shotRepository;
     private final CycleRepository cycleRepository;
+    private final ChatPushSender chatPushSender;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatMessageService(MessageRepository messageRepository,
@@ -63,6 +64,7 @@ public class ChatMessageService {
                               GroupRepository groupRepository,
                               ShotRepository shotRepository,
                               CycleRepository cycleRepository,
+                              ChatPushSender chatPushSender,
                               SimpMessagingTemplate messagingTemplate) {
         this.messageRepository = messageRepository;
         this.messageHideRepository = messageHideRepository;
@@ -71,6 +73,7 @@ public class ChatMessageService {
         this.groupRepository = groupRepository;
         this.shotRepository = shotRepository;
         this.cycleRepository = cycleRepository;
+        this.chatPushSender = chatPushSender;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -90,6 +93,7 @@ public class ChatMessageService {
         };
 
         Message saved = messageRepository.save(message);
+        chatPushSender.pushNewMessage(saved, membership.getNickname());
         return toResponse(saved, membership.getNickname());
     }
 
