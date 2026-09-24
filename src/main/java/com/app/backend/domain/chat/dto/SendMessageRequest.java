@@ -1,10 +1,12 @@
 package com.app.backend.domain.chat.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import com.app.backend.domain.chat.entity.MessageType;
 import jakarta.validation.constraints.Size;
 
-/** 채팅 텍스트 메시지 전송 요청. */
+/** 채팅 메시지 전송 요청 */
 public record SendMessageRequest(
-        @NotBlank @Size(max = 200) String content
+        MessageType type,
+        @Size(max = 200) String content,
+        Long shotId
 ) {
 }
