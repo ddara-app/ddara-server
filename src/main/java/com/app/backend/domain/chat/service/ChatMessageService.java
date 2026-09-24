@@ -79,6 +79,7 @@ public class ChatMessageService {
         Message message = switch (type) {
             case TEXT -> buildText(groupId, userId, request);
             case PHOTO -> buildPhoto(groupId, userId, request);
+            case IMAGE -> buildImage(groupId, userId, request);
             default -> throw new CustomException(ErrorCode.INVALID_INPUT);
         };
 
@@ -105,6 +106,16 @@ public class ChatMessageService {
         return Message.builder()
                 .groupId(groupId).userId(userId)
                 .type(MessageType.PHOTO).content(request.content()).shotId(request.shotId())
+                .build();
+    }
+
+    private Message buildImage(Long groupId, Long userId, SendMessageRequest request) {
+        if (request.imageUrl() == null || request.imageUrl().isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return Message.builder()
+                .groupId(groupId).userId(userId)
+                .type(MessageType.IMAGE).imageUrl(request.imageUrl())
                 .build();
     }
 

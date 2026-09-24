@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 public record SendMessageRequest(
         MessageType type,
         @Size(max = 200) String content,
-        Long shotId
+        Long shotId,
+        String imageUrl
 ) {
 }
