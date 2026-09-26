@@ -4,5 +4,6 @@ public enum ReportTargetType {
     SHOT,
     COMMENT,
     USER,
-    GROUP
+    GROUP,
+    MESSAGE
 }

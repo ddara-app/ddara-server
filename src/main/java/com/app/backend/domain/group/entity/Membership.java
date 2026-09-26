@@ -45,6 +45,12 @@ public class Membership {
     @Column(name = "starter_seen_at")
     private LocalDateTime starterSeenAt;
 
+    @Column(name = "chat_last_read_at")
+    private LocalDateTime chatLastReadAt;
+
+    @Column(name = "chat_muted", nullable = false)
+    private boolean chatMuted;
+
     @Builder
     private Membership(Long groupId, Long userId, String nickname, MembershipRole role, LocalDateTime joinedAt) {
         this.groupId = groupId;
@@ -78,5 +84,15 @@ public class Membership {
     // 룰렛 열람 기록
     public void markStarterSeen(LocalDateTime seenAt) {
         this.starterSeenAt = seenAt;
+    }
+
+    // 채팅방 읽음 처리
+    public void markChatRead(LocalDateTime readAt) {
+        this.chatLastReadAt = readAt;
+    }
+
+    // 방별 채팅 알림 켜기/끄기 (muted=true면 알림 끔)
+    public void changeChatMuted(boolean muted) {
+        this.chatMuted = muted;
     }
 }

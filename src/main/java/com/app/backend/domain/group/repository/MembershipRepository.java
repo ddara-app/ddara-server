@@ -4,6 +4,7 @@ import com.app.backend.domain.group.entity.Membership;
 import com.app.backend.domain.group.entity.MembershipId;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +12,9 @@ public interface MembershipRepository extends JpaRepository<Membership, Membersh
 
     // 특정 모임의 내 멤버십 (나간 것 포함) — 재참여 복귀 판단용
     Optional<Membership> findByGroupIdAndUserId(Long groupId, Long userId);
+
+    // 한 모임에서 여러 사용자의 멤버십 (나간 것 포함) — 메시지 작성자 닉네임 조회용
+    List<Membership> findByGroupIdAndUserIdIn(Long groupId, Collection<Long> userIds);
 
     // 내가 현재 속한 멤버십 목록
     List<Membership> findByUserIdAndLeftAtIsNull(Long userId);
