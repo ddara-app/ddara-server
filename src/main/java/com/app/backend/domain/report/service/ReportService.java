@@ -1,5 +1,7 @@
 package com.app.backend.domain.report.service;
 
+import com.app.backend.domain.chat.entity.Message;
+import com.app.backend.domain.chat.repository.MessageRepository;
 import com.app.backend.domain.comment.entity.Comment;
 import com.app.backend.domain.comment.repository.CommentRepository;
 import com.app.backend.domain.cycle.entity.Cycle;
@@ -42,6 +44,7 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final ShotRepository shotRepository;
     private final CommentRepository commentRepository;
+    private final MessageRepository messageRepository;
     private final CycleRepository cycleRepository;
     private final MembershipRepository membershipRepository;
     private final GroupRepository groupRepository;
@@ -50,6 +53,7 @@ public class ReportService {
     public ReportService(ReportRepository reportRepository,
                          ShotRepository shotRepository,
                          CommentRepository commentRepository,
+                         MessageRepository messageRepository,
                          CycleRepository cycleRepository,
                          MembershipRepository membershipRepository,
                          GroupRepository groupRepository,
@@ -57,6 +61,7 @@ public class ReportService {
         this.reportRepository = reportRepository;
         this.shotRepository = shotRepository;
         this.commentRepository = commentRepository;
+        this.messageRepository = messageRepository;
         this.cycleRepository = cycleRepository;
         this.membershipRepository = membershipRepository;
         this.groupRepository = groupRepository;
@@ -71,13 +76,14 @@ public class ReportService {
             case COMMENT -> reportComment(userId, request);
             case USER -> reportUser(userId, request);
             case GROUP -> reportGroup(userId, request);
+            case MESSAGE -> reportMessage(userId, request);
         }
     }
 
     private void validateReason(ReportRequest request) {
         Set<ReportReason> allowed = switch (request.targetType()) {
             case SHOT -> SHOT_REASONS;
-            case COMMENT -> COMMENT_REASONS;
+            case COMMENT, MESSAGE -> COMMENT_REASONS;
             case USER -> USER_REASONS;
             case GROUP -> GROUP_REASONS;
         };
@@ -128,6 +134,23 @@ public class ReportService {
         }
 
         Report report = saveReport(userId, request, null, comment.getContent());
+        discordReportNotifier.notify(report);
+    }
+
+    private void reportMessage(Long userId, ReportRequest request) {
+        Message message = messageRepository.findById(request.targetId())
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (message.getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        if (!membershipRepository.existsByGroupIdAndUserIdAndLeftAtIsNull(message.getGroupId(), userId)) {
+            throw new CustomException(ErrorCode.NOT_GROUP_MEMBER);
+        }
+
+        Report report = saveReport(userId, request, null, message.getContent());
         discordReportNotifier.notify(report);
     }
 
