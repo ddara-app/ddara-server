@@ -64,6 +64,10 @@ public class Message {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // 이전 댓글에서 옮겨온(백필된) 메시지 여부
+    @Column(nullable = false)
+    private boolean migrated;
+
     @Builder
     private Message(Long groupId, Long userId, MessageType type, String content,
                     Long shotId, String imageUrl, Long replyToMessageId) {

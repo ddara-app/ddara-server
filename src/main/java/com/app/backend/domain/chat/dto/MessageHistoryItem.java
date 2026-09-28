@@ -17,6 +17,7 @@ public record MessageHistoryItem(
         Long shotId,
         String imageUrl,
         String topic,
+        boolean migrated,
         OffsetDateTime createdAt
 ) {
     public static MessageHistoryItem of(Message message, String senderNickname, String imageUrl, String topic) {
@@ -31,6 +32,7 @@ public record MessageHistoryItem(
                 deleted ? null : message.getShotId(),
                 deleted ? null : imageUrl,
                 deleted ? null : topic,
+                message.isMigrated(),
                 KstTime.toOffset(message.getCreatedAt()));
     }
 }
