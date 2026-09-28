@@ -22,12 +22,14 @@ import com.app.backend.domain.chat.repository.MessageHideRepository;
 import com.app.backend.domain.chat.repository.MessageReactionRepository;
 import com.app.backend.domain.chat.repository.MessageRepository;
 import com.app.backend.domain.cycle.entity.Cycle;
+import com.app.backend.domain.cycle.entity.CycleStatus;
 import com.app.backend.domain.cycle.repository.CycleRepository;
 import com.app.backend.domain.group.entity.Group;
 import com.app.backend.domain.group.entity.Membership;
 import com.app.backend.domain.group.repository.GroupRepository;
 import com.app.backend.domain.group.repository.MembershipRepository;
 import com.app.backend.domain.shot.entity.Shot;
+import com.app.backend.domain.shot.entity.ShotType;
 import com.app.backend.domain.shot.repository.ShotRepository;
 import com.app.backend.global.exception.CustomException;
 import com.app.backend.global.exception.ErrorCode;
@@ -257,7 +259,9 @@ public class ChatMessageService {
             items.add(new ChatRoomItem(
                     group.getId(),
                     group.getName(),
-                    last == null ? null : last.getContent(),
+                    groupThumbnailUrl(group.getId()),
+                    lastMessagePreview(last),
+                    lastSenderNickname(group.getId(), last),
                     last == null ? null : KstTime.toOffset(last.getCreatedAt()),
                     unread));
         }
@@ -265,6 +269,43 @@ public class ChatMessageService {
         items.sort(Comparator.comparing(ChatRoomItem::lastMessageAt,
                 Comparator.nullsLast(Comparator.reverseOrder())));
         return new ChatRoomListResponse(items);
+    }
+
+    // 채팅방 목록 미리보기
+    private String lastMessagePreview(Message last) {
+        if (last == null) {
+            return null;
+        }
+        if (last.isDeleted()) {
+            return "삭제된 메시지";
+        }
+        return last.getType() == MessageType.TEXT ? last.getContent() : "사진";
+    }
+
+    // 마지막 메시지 발신자의 모임 닉네임
+    private String lastSenderNickname(Long groupId, Message last) {
+        if (last == null) {
+            return null;
+        }
+        return membershipRepository.findByGroupIdAndUserId(groupId, last.getUserId())
+                .map(Membership::getNickname)
+                .orElse(null);
+    }
+
+    // 방 썸네일
+    private String groupThumbnailUrl(Long groupId) {
+        Cycle cycle = cycleRepository.findByGroupIdAndStatus(groupId, CycleStatus.IN_PROGRESS)
+                .orElseGet(() -> cycleRepository
+                        .findTopByGroupIdAndStatusOrderByCycleNumberDesc(groupId, CycleStatus.DONE)
+                        .orElse(null));
+        if (cycle == null) {
+            return null;
+        }
+        Shot starter = shotRepository.findByCycleIdAndType(cycle.getId(), ShotType.STARTER).orElse(null);
+        if (starter == null || starter.isUnderReview()) {
+            return null;
+        }
+        return starter.getImageUrl();
     }
 
     /** 메시지 삭제. 본인 메시지만 soft delete 후 삭제 이벤트를 구독자에게 전송 */

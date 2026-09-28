@@ -6,7 +6,9 @@ import java.time.OffsetDateTime;
 public record ChatRoomItem(
         Long groupId,
         String groupName,
+        String thumbnailUrl,
         String lastMessage,
+        String lastSenderNickname,
         OffsetDateTime lastMessageAt,
         long unreadCount
 ) {
