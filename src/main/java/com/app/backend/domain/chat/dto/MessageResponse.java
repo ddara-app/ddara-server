@@ -17,9 +17,13 @@ public record MessageResponse(
         Long shotId,
         String imageUrl,
         String topic,
+        Long replyToMessageId,
+        String replyToSenderNickname,
+        String replyToPreview,
         OffsetDateTime createdAt
 ) {
-    public static MessageResponse of(Message message, String senderNickname, String imageUrl, String topic) {
+    public static MessageResponse of(Message message, String senderNickname, String imageUrl, String topic,
+                                     Long replyToMessageId, String replyToSenderNickname, String replyToPreview) {
         return new MessageResponse(
                 message.getId(),
                 message.getGroupId(),
@@ -30,6 +34,9 @@ public record MessageResponse(
                 message.getShotId(),
                 imageUrl,
                 topic,
+                replyToMessageId,
+                replyToSenderNickname,
+                replyToPreview,
                 KstTime.toOffset(message.getCreatedAt()));
     }
 }

@@ -8,6 +8,7 @@ public record SendMessageRequest(
         MessageType type,
         @Size(max = 200) String content,
         Long shotId,
-        String imageUrl
+        String imageUrl,
+        Long replyToMessageId
 ) {
 }

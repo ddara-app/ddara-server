@@ -18,9 +18,13 @@ public record MessageHistoryItem(
         String imageUrl,
         String topic,
         boolean migrated,
+        Long replyToMessageId,
+        String replyToSenderNickname,
+        String replyToPreview,
         OffsetDateTime createdAt
 ) {
-    public static MessageHistoryItem of(Message message, String senderNickname, String imageUrl, String topic) {
+    public static MessageHistoryItem of(Message message, String senderNickname, String imageUrl, String topic,
+                                        Long replyToMessageId, String replyToSenderNickname, String replyToPreview) {
         boolean deleted = message.isDeleted();
         return new MessageHistoryItem(
                 message.getId(),
@@ -33,6 +37,9 @@ public record MessageHistoryItem(
                 deleted ? null : imageUrl,
                 deleted ? null : topic,
                 message.isMigrated(),
+                deleted ? null : replyToMessageId,
+                deleted ? null : replyToSenderNickname,
+                deleted ? null : replyToPreview,
                 KstTime.toOffset(message.getCreatedAt()));
     }
 }
