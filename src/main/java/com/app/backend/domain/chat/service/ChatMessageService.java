@@ -86,6 +86,8 @@ public class ChatMessageService {
                 .filter(Membership::isActive)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
 
+        validateReplyTo(groupId, request.replyToMessageId());
+
         MessageType type = request.type() == null ? MessageType.TEXT : request.type();
         Message message = switch (type) {
             case TEXT -> buildText(groupId, userId, request);
@@ -117,6 +119,7 @@ public class ChatMessageService {
         return Message.builder()
                 .groupId(groupId).userId(userId)
                 .type(MessageType.TEXT).content(request.content())
+                .replyToMessageId(request.replyToMessageId())
                 .build();
     }
 
@@ -131,6 +134,7 @@ public class ChatMessageService {
         return Message.builder()
                 .groupId(groupId).userId(userId)
                 .type(MessageType.PHOTO).content(request.content()).shotId(request.shotId())
+                .replyToMessageId(request.replyToMessageId())
                 .build();
     }
 
@@ -141,6 +145,7 @@ public class ChatMessageService {
         return Message.builder()
                 .groupId(groupId).userId(userId)
                 .type(MessageType.IMAGE).imageUrl(request.imageUrl())
+                .replyToMessageId(request.replyToMessageId())
                 .build();
     }
 
@@ -148,6 +153,16 @@ public class ChatMessageService {
         if (request.content() == null || request.content().isBlank()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
+    }
+
+    // 답글 대상이 지정되면 같은 방에 존재하는 메시지인지 검증
+    private void validateReplyTo(Long groupId, Long replyToMessageId) {
+        if (replyToMessageId == null) {
+            return;
+        }
+        messageRepository.findById(replyToMessageId)
+                .filter(m -> m.getGroupId().equals(groupId))
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
     }
 
     // 단건 응답: imageUrl(IMAGE는 저장값, PHOTO/STARTER_SHARE는 shotId로 사진 조회)과 topic(STARTER_SHARE) 해결
@@ -163,7 +178,19 @@ public class ChatMessageService {
         String topic = (message.getType() == MessageType.STARTER_SHARE && shot != null)
                 ? cycleRepository.findById(shot.getCycleId()).map(Cycle::getTopic).orElse(null)
                 : null;
-        return MessageResponse.of(message, senderNickname, imageUrl, topic);
+
+        Long replyToId = message.getReplyToMessageId();
+        String replyNickname = null;
+        String replyPreview = null;
+        if (replyToId != null) {
+            Message origin = messageRepository.findById(replyToId).orElse(null);
+            if (origin != null) {
+                replyPreview = messagePreview(origin);
+                replyNickname = membershipRepository.findByGroupIdAndUserId(message.getGroupId(), origin.getUserId())
+                        .map(Membership::getNickname).orElse(null);
+            }
+        }
+        return MessageResponse.of(message, senderNickname, imageUrl, topic, replyToId, replyNickname, replyPreview);
     }
 
     /** 메시지 이력 조회. 참여 시점 이후 메시지만 커서 페이지네이션으로 반환. 활성 멤버만 가능. */
@@ -199,6 +226,14 @@ public class ChatMessageService {
         Map<Long, String> topics = cycleRepository.findAllById(cycleIds).stream()
                 .collect(Collectors.toMap(Cycle::getId, Cycle::getTopic));
 
+        // 답글 원본 배치 조회 + 원본 작성자 닉네임
+        List<Long> replyIds = page.stream().map(Message::getReplyToMessageId).filter(id -> id != null).distinct().toList();
+        Map<Long, Message> origins = messageRepository.findAllById(replyIds).stream()
+                .collect(Collectors.toMap(Message::getId, m -> m));
+        List<Long> originSenderIds = origins.values().stream().map(Message::getUserId).distinct().toList();
+        Map<Long, String> originNicknames = membershipRepository.findByGroupIdAndUserIdIn(groupId, originSenderIds).stream()
+                .collect(Collectors.toMap(Membership::getUserId, Membership::getNickname));
+
         // 응답은 id 오름차순
         List<MessageHistoryItem> items = new ArrayList<>();
         for (int i = page.size() - 1; i >= 0; i--) {
@@ -210,7 +245,19 @@ public class ChatMessageService {
             String topic = (m.getType() == MessageType.STARTER_SHARE && shot != null)
                     ? topics.get(shot.getCycleId())
                     : null;
-            items.add(MessageHistoryItem.of(m, nicknames.get(m.getUserId()), imageUrl, topic));
+
+            Long replyToId = m.getReplyToMessageId();
+            String replyNickname = null;
+            String replyPreview = null;
+            if (replyToId != null) {
+                Message origin = origins.get(replyToId);
+                if (origin != null) {
+                    replyPreview = messagePreview(origin);
+                    replyNickname = originNicknames.get(origin.getUserId());
+                }
+            }
+            items.add(MessageHistoryItem.of(m, nicknames.get(m.getUserId()), imageUrl, topic,
+                    replyToId, replyNickname, replyPreview));
         }
         return new MessageHistoryResponse(items, hasNext, nextCursor);
     }
@@ -260,7 +307,7 @@ public class ChatMessageService {
                     group.getId(),
                     group.getName(),
                     groupThumbnailUrl(group.getId()),
-                    lastMessagePreview(last),
+                    messagePreview(last),
                     lastSenderNickname(group.getId(), last),
                     last == null ? null : KstTime.toOffset(last.getCreatedAt()),
                     unread));
@@ -271,15 +318,15 @@ public class ChatMessageService {
         return new ChatRoomListResponse(items);
     }
 
-    // 채팅방 목록 미리보기
-    private String lastMessagePreview(Message last) {
-        if (last == null) {
+    // 메시지 미리보기
+    private String messagePreview(Message message) {
+        if (message == null) {
             return null;
         }
-        if (last.isDeleted()) {
+        if (message.isDeleted()) {
             return "삭제된 메시지";
         }
-        return last.getType() == MessageType.TEXT ? last.getContent() : "사진";
+        return message.getType() == MessageType.TEXT ? message.getContent() : "사진";
     }
 
     // 마지막 메시지 발신자의 모임 닉네임
