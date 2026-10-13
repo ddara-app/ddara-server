@@ -23,6 +23,9 @@ jobs:
             cd ~/ddara-server &&
             git fetch origin develop &&
             git reset --hard origin/develop &&
+            sudo mkdir -p /etc/systemd/system/ddara.service.d &&
+            printf '[Service]\nEnvironment=SENTRY_DSN=%s\nEnvironment=SENTRY_ENVIRONMENT=production\n' '${{ secrets.SENTRY_DSN }}' | sudo tee /etc/systemd/system/ddara.service.d/sentry.conf > /dev/null &&
+            sudo systemctl daemon-reload &&
             chmod +x gradlew &&
             ./gradlew bootJar -x test &&
             sudo systemctl restart ddara &&
