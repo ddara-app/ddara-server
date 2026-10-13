@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Spring Boot 기본 로그 패턴(CONSOLE_LOG_PATTERN, FILE_LOG_PATTERN) 사용 -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 로그 디렉터리. 환경변수 LOG_DIR로 재정의 가능, 기본은 실행 위치의 logs/ -->
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+
+    <!-- 콘솔 출력 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 파일 출력: 일별 + 파일당 10MB 넘으면 분리, 14일 보관, 전체 500MB 상한 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/app.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 로컬(local 프로파일): 콘솔만. 개발 중 파일을 남기지 않으려면 local로 실행 -->
+    <springProfile name="local">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- 기본/프로덕션(local 외): 콘솔 + 파일. 프로파일 미지정이어도 파일 로그가 남는다 -->
+    <springProfile name="!local">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+        <!-- 앱 패키지는 필요 시 레벨 조정(현재 INFO) -->
+        <logger name="com.app.backend" level="INFO"/>
+    </springProfile>
+</configuration>
