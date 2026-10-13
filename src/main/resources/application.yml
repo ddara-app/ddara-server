@@ -47,3 +47,14 @@ apple:
   # iOS가 네이티브 애플 로그인이면 Bundle ID, 웹 플로우면 Service ID(com.swyp.ddara.service)로 교체
   client-id: ${APPLE_CLIENT_ID:com.ddara.team3}
   private-key-path: ${APPLE_PRIVATE_KEY_PATH:apple/AuthKey_HBT5YX26FZ.p8}
+
+# Sentry 에러 추적
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:local}
+  # 에러 추적만 사용 (성능 추적 비활성)
+  traces-sample-rate: 0
+  # 개인정보(IP, 쿠키 등)는 전송하지 않음
+  send-default-pii: false
+  # 비즈니스 예외(의도된 400/404 등)는 전송하지 않고 진짜 버그만 수집
+  ignored-exceptions-for-type: com.app.backend.global.exception.CustomException
