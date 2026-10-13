@@ -66,6 +66,9 @@ dependencies {
     implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
     implementation 'software.amazon.awssdk:s3'
 
+    // Sentry (에러 추적)
+    implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.16.0'
+
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
